@@ -14,6 +14,16 @@ const selfInternal = internal.agent.conversation;
 const LANGUAGE_INSTRUCTION =
   '重要: あなたは日本人で、必ず自然な日本語で返答すること。英語や中国語は使わない。';
 
+// 生存状態(所持金・空腹)をプロンプトに反映し、会話に滲ませる
+function statePrompt(player: { money: number; hunger: number }): string {
+  const money = Math.floor(player.money);
+  const hunger = Math.floor(player.hunger);
+  let s = `今のあなたの状態: 所持金 ${money}、空腹度 ${hunger}/100。`;
+  if (hunger >= 60) s += ' かなり空腹で、食べ物や金のことが頭をよぎる。';
+  if (money < 20) s += ' 持ち金が乏しく、暮らしが不安だ。';
+  return s;
+}
+
 export async function startConversationMessage(
   ctx: ActionCtx,
   worldId: Id<'worlds'>,
@@ -56,6 +66,7 @@ export async function startConversationMessage(
       `Be sure to include some detail or question about a previous conversation in your greeting.`,
     );
   }
+  prompt.push(statePrompt(player));
   prompt.push(LANGUAGE_INSTRUCTION);
   const lastPrompt = `${player.name} to ${otherPlayer.name}:`;
   prompt.push(lastPrompt);
@@ -113,6 +124,7 @@ export async function continueConversationMessage(
     `Below is the current chat history between you and ${otherPlayer.name}.`,
     `DO NOT greet them again. Do NOT use the word "Hey" too often. Your response should be brief and within 200 characters.`,
   );
+  prompt.push(statePrompt(player));
   prompt.push(LANGUAGE_INSTRUCTION);
 
   const llmMessages: LLMMessage[] = [
@@ -164,6 +176,7 @@ export async function leaveConversationMessage(
     `Below is the current chat history between you and ${otherPlayer.name}.`,
     `How would you like to tell them that you're leaving? Your response should be brief and within 200 characters.`,
   );
+  prompt.push(statePrompt(player));
   prompt.push(LANGUAGE_INSTRUCTION);
   const llmMessages: LLMMessage[] = [
     {

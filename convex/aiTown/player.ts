@@ -8,6 +8,12 @@ import {
   HUMAN_IDLE_TOO_LONG,
   MAX_HUMAN_PLAYERS,
   MAX_PATHFINDS_PER_STEP,
+  HUNGER_PER_MS,
+  INCOME_PER_MS,
+  EAT_THRESHOLD,
+  FOOD_COST,
+  START_MONEY_MIN,
+  START_MONEY_RANGE,
 } from '../constants';
 import { pointsEqual, pathPosition } from '../util/geometry';
 import { Game } from './game';
@@ -54,6 +60,11 @@ export const serializedPlayer = {
   position: point,
   facing: vector,
   speed: v.number(),
+
+  // 生存ループ
+  money: v.number(),
+  hunger: v.number(), // 0-100、100で餓死
+  lastNeedsUpdate: v.number(),
 };
 export type SerializedPlayer = ObjectType<typeof serializedPlayer>;
 
@@ -69,8 +80,13 @@ export class Player {
   facing: Vector;
   speed: number;
 
+  money: number;
+  hunger: number;
+  lastNeedsUpdate: number;
+
   constructor(serialized: SerializedPlayer) {
     const { id, human, pathfinding, activity, lastInput, position, facing, speed } = serialized;
+    const { money, hunger, lastNeedsUpdate } = serialized;
     this.id = parseGameId('players', id);
     this.human = human;
     this.pathfinding = pathfinding;
@@ -79,10 +95,38 @@ export class Player {
     this.position = position;
     this.facing = facing;
     this.speed = speed;
+    this.money = money;
+    this.hunger = hunger;
+    this.lastNeedsUpdate = lastNeedsUpdate;
   }
 
   tick(game: Game, now: number) {
-    if (this.human && this.lastInput < now - HUMAN_IDLE_TOO_LONG) {
+    if (this.human) {
+      if (this.lastInput < now - HUMAN_IDLE_TOO_LONG) {
+        this.leave(game, now);
+      }
+      return;
+    }
+    // --- 生存ループ: 空腹上昇・収入・自動食事・餓死 ---
+    const dt = now - this.lastNeedsUpdate;
+    if (dt > 0) {
+      this.hunger = Math.min(100, this.hunger + dt * HUNGER_PER_MS);
+      this.money += dt * INCOME_PER_MS;
+      this.lastNeedsUpdate = now;
+    }
+    // 空腹で金があれば食べる
+    if (this.hunger >= EAT_THRESHOLD && this.money >= FOOD_COST) {
+      this.money -= FOOD_COST;
+      this.hunger = 0;
+    }
+    // 餓死
+    if (this.hunger >= 100) {
+      // 対応するagentも消す(agent.tickがplayer不在でthrowするため)
+      const deadAgent = [...game.world.agents.values()].find((a) => a.playerId === this.id);
+      if (deadAgent) {
+        game.world.agents.delete(deadAgent.id);
+      }
+      console.log(`${this.id} は餓死した`);
       this.leave(game, now);
     }
   }
@@ -222,6 +266,9 @@ export class Player {
         position,
         facing,
         speed: 0,
+        money: START_MONEY_MIN + Math.floor(Math.random() * START_MONEY_RANGE),
+        hunger: 0,
+        lastNeedsUpdate: now,
       }),
     );
     game.playerDescriptions.set(
@@ -250,6 +297,7 @@ export class Player {
 
   serialize(): SerializedPlayer {
     const { id, human, pathfinding, activity, lastInput, position, facing, speed } = this;
+    const { money, hunger, lastNeedsUpdate } = this;
     return {
       id,
       human,
@@ -259,6 +307,9 @@ export class Player {
       position,
       facing,
       speed,
+      money,
+      hunger,
+      lastNeedsUpdate,
     };
   }
 }

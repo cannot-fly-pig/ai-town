@@ -76,3 +76,15 @@ export const ENGINE_ACTION_DURATION = 30000;
 export const MAX_PATHFINDS_PER_STEP = 16;
 
 export const DEFAULT_NAME = 'Me';
+
+// --- 生存ループ (money / hunger / 餓死) ---
+// hunger は時間で 0→100 に上昇。100 で餓死。
+export const HUNGER_PER_MS = 0.0001; // 約16分で空腹MAX
+// 受動収入(働き)。食費(約0.96/分)未満にして、金が徐々に減り貧しい者から餓死するようにする。
+export const INCOME_PER_MS = 0.000012; // 約0.72/分(食費 < これ なので緩やかに赤字)
+// 空腹がこの値以上 かつ 金があれば自動で食事。
+export const EAT_THRESHOLD = 50;
+export const FOOD_COST = 8; // 1食の値段
+// 開始時の所持金 (下限 + ランダム幅)。
+export const START_MONEY_MIN = 40;
+export const START_MONEY_RANGE = 80; // 40〜120
