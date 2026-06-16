@@ -27,6 +27,15 @@ function statePrompt(player: { money: number; hunger: number }): string {
   return s;
 }
 
+// 相手への親愛度(符号付き)を会話の態度に反映する
+function affinityPrompt(otherName: string, aff: number): string {
+  if (aff >= 5) return `あなたは${otherName}に強い好意・愛情を抱いている。言葉の端々に温かさがにじむ。`;
+  if (aff >= 2) return `あなたは${otherName}に親しみを感じている。`;
+  if (aff <= -5) return `あなたは${otherName}を心底嫌っている。冷たく、棘のある態度になる。`;
+  if (aff <= -2) return `あなたは${otherName}がどうも苦手だ。素っ気なくなりがち。`;
+  return '';
+}
+
 export async function startConversationMessage(
   ctx: ActionCtx,
   worldId: Id<'worlds'>,
@@ -70,6 +79,9 @@ export async function startConversationMessage(
     );
   }
   prompt.push(statePrompt(player));
+  prompt.push(
+    affinityPrompt(otherPlayer.name, (agent as any)?.relationships?.[(otherPlayer as any).id] ?? 0),
+  );
   prompt.push(LANGUAGE_INSTRUCTION);
   const lastPrompt = `${player.name} to ${otherPlayer.name}:`;
   prompt.push(lastPrompt);
@@ -128,6 +140,9 @@ export async function continueConversationMessage(
     `DO NOT greet them again. Do NOT use the word "Hey" too often. Your response should be brief and within 200 characters.`,
   );
   prompt.push(statePrompt(player));
+  prompt.push(
+    affinityPrompt(otherPlayer.name, (agent as any)?.relationships?.[(otherPlayer as any).id] ?? 0),
+  );
   prompt.push(LANGUAGE_INSTRUCTION);
 
   const llmMessages: LLMMessage[] = [
@@ -180,6 +195,9 @@ export async function leaveConversationMessage(
     `How would you like to tell them that you're leaving? Your response should be brief and within 200 characters.`,
   );
   prompt.push(statePrompt(player));
+  prompt.push(
+    affinityPrompt(otherPlayer.name, (agent as any)?.relationships?.[(otherPlayer as any).id] ?? 0),
+  );
   prompt.push(LANGUAGE_INSTRUCTION);
   const llmMessages: LLMMessage[] = [
     {

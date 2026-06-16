@@ -14,6 +14,7 @@ import {
   FOOD_COST,
   START_MONEY_MIN,
   START_MONEY_RANGE,
+  CHILDHOOD_MS,
 } from '../constants';
 import { pointsEqual, pathPosition } from '../util/geometry';
 import { Game } from './game';
@@ -65,6 +66,9 @@ export const serializedPlayer = {
   money: v.number(),
   hunger: v.number(), // 0-100、100で餓死
   lastNeedsUpdate: v.number(),
+  // 生殖: 子供は誕生時刻と親を持つ(成人するまで労働/収入なし・食費は親が払う)
+  bornAt: v.optional(v.number()),
+  parentIds: v.optional(v.array(v.string())),
 };
 export type SerializedPlayer = ObjectType<typeof serializedPlayer>;
 
@@ -83,10 +87,12 @@ export class Player {
   money: number;
   hunger: number;
   lastNeedsUpdate: number;
+  bornAt?: number;
+  parentIds?: string[];
 
   constructor(serialized: SerializedPlayer) {
     const { id, human, pathfinding, activity, lastInput, position, facing, speed } = serialized;
-    const { money, hunger, lastNeedsUpdate } = serialized;
+    const { money, hunger, lastNeedsUpdate, bornAt, parentIds } = serialized;
     this.id = parseGameId('players', id);
     this.human = human;
     this.pathfinding = pathfinding;
@@ -98,6 +104,8 @@ export class Player {
     this.money = money;
     this.hunger = hunger;
     this.lastNeedsUpdate = lastNeedsUpdate;
+    this.bornAt = bornAt;
+    this.parentIds = parentIds;
   }
 
   tick(game: Game, now: number) {
@@ -108,16 +116,27 @@ export class Player {
       return;
     }
     // --- 生存ループ: 空腹上昇・収入・自動食事・餓死 ---
+    const isChild = this.bornAt !== undefined && now - this.bornAt < CHILDHOOD_MS;
     const dt = now - this.lastNeedsUpdate;
     if (dt > 0) {
       this.hunger = Math.min(100, this.hunger + dt * HUNGER_PER_MS);
-      this.money += dt * INCOME_PER_MS;
+      if (!isChild) this.money += dt * INCOME_PER_MS; // 子供は収入なし
       this.lastNeedsUpdate = now;
     }
-    // 空腹で金があれば食べる
-    if (this.hunger >= EAT_THRESHOLD && this.money >= FOOD_COST) {
-      this.money -= FOOD_COST;
-      this.hunger = 0;
+    // 空腹で食べる。子供は親が食費を払う、大人は自分で払う
+    if (this.hunger >= EAT_THRESHOLD) {
+      if (isChild) {
+        const parent = (this.parentIds ?? [])
+          .map((pid) => game.world.players.get(pid as GameId<'players'>))
+          .find((p) => p && p.money >= FOOD_COST);
+        if (parent) {
+          parent.money -= FOOD_COST;
+          this.hunger = 0;
+        }
+      } else if (this.money >= FOOD_COST) {
+        this.money -= FOOD_COST;
+        this.hunger = 0;
+      }
     }
     // 餓死
     if (this.hunger >= 100) {
@@ -297,7 +316,7 @@ export class Player {
 
   serialize(): SerializedPlayer {
     const { id, human, pathfinding, activity, lastInput, position, facing, speed } = this;
-    const { money, hunger, lastNeedsUpdate } = this;
+    const { money, hunger, lastNeedsUpdate, bornAt, parentIds } = this;
     return {
       id,
       human,
@@ -310,6 +329,8 @@ export class Player {
       money,
       hunger,
       lastNeedsUpdate,
+      bornAt,
+      parentIds,
     };
   }
 }

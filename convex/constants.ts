@@ -116,3 +116,18 @@ export function matchJob(description: string): Job | null {
   }
   return null;
 }
+
+// --- 生殖(世代交代・相続) ---
+export const MAX_POPULATION = 20; // これ以上は増えない(人口爆発防止)
+export const REPRO_COST = 35; // 親それぞれが子に遺す額(両親ともこれ以上の所持金が必要)
+export const REPRO_PROB = 0.25; // 条件を満たした会話終了時に子が生まれる確率
+// 親愛度: 符号付き(+好き / -嫌い)。会話のたび各人が相手に独立した増減を持つ(片思い・相互嫌悪あり)。
+// 相性次第で下がることもある。範囲は [-10, 10] にクランプ。
+export const AFFINITY_MIN_DELTA = -2;
+export const AFFINITY_MAX_DELTA = 3; // やや正寄りだが嫌悪も十分起こる
+export const REPRO_AFFINITY = 3; // 生殖に必要な相互親愛度(好き合った2人だけ)
+export const CHILD_NAMES = [
+  'ハル', 'ナギ', 'ソラ', 'ツキ', 'リン', 'カイ', 'ユウ', 'ミオ', 'アオ', 'ノゾミ', 'イト', 'レン', 'ヒナ', 'マコト',
+];
+// 子供期間: この間は労働・収入なし、食費は親が払う。過ぎると大人になり自立。
+export const CHILDHOOD_MS = 30 * 60 * 1000; // 約30分(sim稼働時間)で成人

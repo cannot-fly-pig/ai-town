@@ -34,6 +34,8 @@ export class Agent {
     operationId: string;
     started: number;
   };
+  // 相手playerId -> 親愛度。会話を重ねると上がる。生殖・恋愛の基盤。
+  relationships: Record<string, number>;
 
   constructor(serialized: SerializedAgent) {
     const { id, lastConversation, lastInviteAttempt, inProgressOperation } = serialized;
@@ -47,6 +49,12 @@ export class Agent {
     this.lastConversation = lastConversation;
     this.lastInviteAttempt = lastInviteAttempt;
     this.inProgressOperation = inProgressOperation;
+    this.relationships = serialized.relationships ?? {};
+  }
+
+  bumpAffinity(otherPlayerId: string, amount: number) {
+    const v = (this.relationships[otherPlayerId] ?? 0) + amount;
+    this.relationships[otherPlayerId] = Math.max(-10, Math.min(10, v));
   }
 
   tick(game: Game, now: number) {
@@ -264,6 +272,7 @@ export class Agent {
       lastConversation: this.lastConversation,
       lastInviteAttempt: this.lastInviteAttempt,
       inProgressOperation: this.inProgressOperation,
+      relationships: this.relationships,
     };
   }
 }
@@ -281,6 +290,7 @@ export const serializedAgent = {
       started: v.number(),
     }),
   ),
+  relationships: v.optional(v.record(v.string(), v.number())),
 };
 export type SerializedAgent = ObjectType<typeof serializedAgent>;
 

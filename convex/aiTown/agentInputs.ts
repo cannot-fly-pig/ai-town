@@ -8,7 +8,7 @@ import { point } from '../util/types';
 import { Descriptions } from '../../data/characters';
 import { AgentDescription } from './agentDescription';
 import { Agent } from './agent';
-import { matchJob } from '../constants';
+import { matchJob, CHILDHOOD_MS } from '../constants';
 
 export const agentInputs = {
   finishRememberConversation: inputHandler({
@@ -72,8 +72,10 @@ export const agentInputs = {
       if (args.activity) {
         player.activity = args.activity;
         // 労働判定: 行動が仕事に該当すれば金を得て空腹が増す(隠し職ほど高給)
+        // 子供は働けない(稼げない)
+        const isChild = player.bornAt !== undefined && now - player.bornAt < CHILDHOOD_MS;
         const job = matchJob(args.activity.description);
-        if (job) {
+        if (job && !isChild) {
           player.money += job.pay;
           player.hunger = Math.min(100, player.hunger + job.hunger);
         }

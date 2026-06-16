@@ -2,15 +2,99 @@ import { ObjectType, v } from 'convex/values';
 import { GameId, parseGameId } from './ids';
 import { conversationId, playerId } from './ids';
 import { Player } from './player';
+import { Agent } from './agent';
+import { AgentDescription } from './agentDescription';
 import { inputHandler } from './inputHandler';
 
-import { TYPING_TIMEOUT, CONVERSATION_DISTANCE } from '../constants';
+import {
+  TYPING_TIMEOUT,
+  CONVERSATION_DISTANCE,
+  MAX_POPULATION,
+  REPRO_COST,
+  REPRO_PROB,
+  CHILD_NAMES,
+  AFFINITY_MIN_DELTA,
+  AFFINITY_MAX_DELTA,
+  REPRO_AFFINITY,
+  CHILDHOOD_MS,
+} from '../constants';
 import { distance, normalize, vector } from '../util/geometry';
 import { Point } from '../util/types';
 import { Game } from './game';
 import { stopPlayer, blocked, movePlayer } from './movement';
 import { ConversationMembership, serializedConversationMembership } from './conversationMembership';
 import { parseMap, serializeMap } from '../util/object';
+
+function randAffinityDelta(): number {
+  return (
+    AFFINITY_MIN_DELTA + Math.floor(Math.random() * (AFFINITY_MAX_DELTA - AFFINITY_MIN_DELTA + 1))
+  );
+}
+
+// 会話終了時: 親愛度を更新し、好き合った裕福な成人2人なら子をもうける
+function maybeReproduce(game: Game, now: number, conversation: Conversation) {
+  const ids = [...conversation.participants.keys()];
+  if (ids.length !== 2) return;
+  const parents = ids
+    .map((id) => game.world.players.get(id))
+    .filter((p): p is Player => !!p);
+  if (parents.length !== 2) return;
+  if (parents.some((p) => p.human)) return;
+  const a0 = [...game.world.agents.values()].find((a) => a.playerId === parents[0].id);
+  const a1 = [...game.world.agents.values()].find((a) => a.playerId === parents[1].id);
+  if (!a0 || !a1) return;
+
+  // 親愛度を更新(各人が独立に。相性次第で下がり、嫌いにもなる)
+  a0.bumpAffinity(parents[1].id, randAffinityDelta());
+  a1.bumpAffinity(parents[0].id, randAffinityDelta());
+
+  // --- 生殖判定 ---
+  if (game.world.players.size >= MAX_POPULATION) return;
+  const isChild = (p: Player) => p.bornAt !== undefined && now - p.bornAt < CHILDHOOD_MS;
+  if (parents.some(isChild)) return; // 子供は親になれない
+  if (parents.some((p) => p.money < REPRO_COST)) return;
+  // 相互に好き合っていること(嫌い合い・片思いでは生まれない)
+  const aff0 = a0.relationships[parents[1].id] ?? 0;
+  const aff1 = a1.relationships[parents[0].id] ?? 0;
+  if (aff0 < REPRO_AFFINITY || aff1 < REPRO_AFFINITY) return;
+  if (Math.random() > REPRO_PROB) return;
+
+  // 親が遺産を払い、それが子の初期所持金になる(裕福な親の子は裕福=格差の世代継承)
+  for (const p of parents) p.money -= REPRO_COST;
+  const childMoney = REPRO_COST * 2;
+  const d0 = game.playerDescriptions.get(parents[0].id);
+  const d1 = game.playerDescriptions.get(parents[1].id);
+  const name0 = d0?.name ?? '誰か';
+  const name1 = d1?.name ?? '誰か';
+  const childName = CHILD_NAMES[Math.floor(Math.random() * CHILD_NAMES.length)];
+  const character = d0?.character ?? 'f1';
+  const identity = `${childName}は${name0}と${name1}の子としてこの町に生まれた。両親の気質を受け継いでいる。世間はまだ知らないが、いつか自分の力で生きていこうとするだろう。`;
+  const plan = '世界を知り、いずれ自分の力で生き抜きたい。';
+  const childId = Player.join(game, now, childName, character, identity);
+  const child = game.world.players.get(childId);
+  if (child) {
+    child.money = childMoney;
+    child.hunger = 0;
+    child.bornAt = now;
+    child.parentIds = [parents[0].id, parents[1].id];
+  }
+  const agentId = game.allocId('agents');
+  game.world.agents.set(
+    agentId,
+    new Agent({
+      id: agentId,
+      playerId: childId,
+      inProgressOperation: undefined,
+      lastConversation: undefined,
+      lastInviteAttempt: undefined,
+      toRemember: undefined,
+      relationships: {},
+    }),
+  );
+  game.agentDescriptions.set(agentId, new AgentDescription({ agentId, identity, plan }));
+  game.descriptionsModified = true;
+  console.log(`👶 ${childName} が ${name0} と ${name1} の子として生まれた`);
+}
 
 export class Conversation {
   id: GameId<'conversations'>;
@@ -192,6 +276,11 @@ export class Conversation {
 
   stop(game: Game, now: number) {
     delete this.isTyping;
+    try {
+      maybeReproduce(game, now, this);
+    } catch (e) {
+      console.error('reproduction failed', e);
+    }
     for (const [playerId, member] of this.participants.entries()) {
       const agent = [...game.world.agents.values()].find((a) => a.playerId === playerId);
       if (agent) {
