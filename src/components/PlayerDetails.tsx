@@ -148,6 +148,24 @@ export default function PlayerDetails({
           </h2>
         </a>
       </div>
+      <div className="box mt-2">
+        <div className="bg-brown-700 p-2 text-base sm:text-sm">
+          <div className="flex justify-between">
+            <span>💰 所持金</span>
+            <span>{Math.floor((player as any).money ?? 0)}</span>
+          </div>
+          <div className="flex justify-between mt-1">
+            <span>🍖 空腹</span>
+            <span>{Math.floor((player as any).hunger ?? 0)}/100</span>
+          </div>
+          <div className="mt-1 h-2 bg-black/40 rounded">
+            <div
+              className="h-full bg-red-600 rounded"
+              style={{ width: `${Math.min(100, Math.floor((player as any).hunger ?? 0))}%` }}
+            />
+          </div>
+        </div>
+      </div>
       {canInvite && (
         <a
           className={
