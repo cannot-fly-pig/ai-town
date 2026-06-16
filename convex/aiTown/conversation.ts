@@ -38,42 +38,36 @@ function randAffinityDelta(): number {
   );
 }
 
-// 会話終了時: 親愛度を更新し、好き合った裕福な成人2人なら子をもうける
-function maybeReproduce(game: Game, now: number, conversation: Conversation) {
+// 会話終了ごとに親愛度を更新(各人独立、相性次第で下がり嫌いにもなる)。生殖判定はもうしない(LLM主導)。
+function bumpConversationAffinity(game: Game, now: number, conversation: Conversation) {
   const ids = [...conversation.participants.keys()];
   if (ids.length !== 2) return;
-  const parents = ids
-    .map((id) => game.world.players.get(id))
-    .filter((p): p is Player => !!p);
-  if (parents.length !== 2) return;
-  if (parents.some((p) => p.human)) return;
-  const a0 = [...game.world.agents.values()].find((a) => a.playerId === parents[0].id);
-  const a1 = [...game.world.agents.values()].find((a) => a.playerId === parents[1].id);
+  const ps = ids.map((id) => game.world.players.get(id)).filter((p): p is Player => !!p);
+  if (ps.length !== 2 || ps.some((p) => p.human)) return;
+  const a0 = [...game.world.agents.values()].find((a) => a.playerId === ps[0].id);
+  const a1 = [...game.world.agents.values()].find((a) => a.playerId === ps[1].id);
   if (!a0 || !a1) return;
+  a0.bumpAffinity(ps[1].id, randAffinityDelta());
+  a1.bumpAffinity(ps[0].id, randAffinityDelta());
+}
 
-  // 親愛度を更新(各人が独立に。相性次第で下がり、嫌いにもなる)
-  a0.bumpAffinity(parents[1].id, randAffinityDelta());
-  a1.bumpAffinity(parents[0].id, randAffinityDelta());
+// 配偶者が死んだら残された側の婚姻を解除(再婚可能に)
+export function widow(game: Game, deadPlayerId: string) {
+  const deadAgent = [...game.world.agents.values()].find((a) => a.playerId === deadPlayerId);
+  const spouseId = deadAgent?.spouse;
+  if (!spouseId) return;
+  const sp = [...game.world.agents.values()].find((a) => a.playerId === spouseId);
+  if (sp) delete sp.spouse;
+}
 
-  // --- 生殖判定 ---
-  if (game.world.players.size >= MAX_POPULATION) return;
-  const isChild = (p: Player) => p.bornAt !== undefined && now - p.bornAt < CHILDHOOD_MS;
-  if (parents.some(isChild)) return; // 子供は親になれない
-  if (parents.some((p) => p.money < REPRO_COST)) return;
-  // 相互に好き合っていること(嫌い合い・片思いでは生まれない)
-  const aff0 = a0.relationships[parents[1].id] ?? 0;
-  const aff1 = a1.relationships[parents[0].id] ?? 0;
-  if (aff0 < REPRO_AFFINITY || aff1 < REPRO_AFFINITY) return;
-  if (Math.random() > REPRO_PROB) return;
-
-  // 親が遺産を払い、それが子の初期所持金になる(裕福な親の子は裕福=格差の世代継承)
-  for (const p of parents) p.money -= REPRO_COST;
+// 子を作る(LLMが夫婦合意で「子を望む」と決めた時に呼ばれる)。親が遺産を払い子の初期資産に。
+export function createChild(game: Game, now: number, a: Player, b: Player) {
+  for (const p of [a, b]) p.money -= REPRO_COST;
   const childMoney = REPRO_COST * 2;
-  const d0 = game.playerDescriptions.get(parents[0].id);
-  const d1 = game.playerDescriptions.get(parents[1].id);
+  const d0 = game.playerDescriptions.get(a.id);
+  const d1 = game.playerDescriptions.get(b.id);
   const name0 = d0?.name ?? '誰か';
   const name1 = d1?.name ?? '誰か';
-  // 生存者と被らない名前を付ける(被ったら連番)。家系を追えるようにユニーク化。
   const livingNames = new Set(
     [...game.world.players.values()]
       .map((p) => game.playerDescriptions.get(p.id)?.name)
@@ -95,7 +89,7 @@ function maybeReproduce(game: Game, now: number, conversation: Conversation) {
     child.money = childMoney;
     child.hunger = 0;
     child.bornAt = now;
-    child.parentIds = [parents[0].id, parents[1].id];
+    child.parentIds = [a.id, b.id];
   }
   const agentId = game.allocId('agents');
   game.world.agents.set(
@@ -126,6 +120,7 @@ export function doAttack(game: Game, now: number, atk: Player, vic: Player) {
     atk.money += Math.max(0, vic.money);
     const conv = [...game.world.conversations.values()].find((c) => c.participants.has(vic.id));
     if (conv) game.world.conversations.delete(conv.id);
+    widow(game, vic.id); // 配偶者がいれば婚姻解除
     if (vicAgent) game.world.agents.delete(vicAgent.id);
     game.world.players.delete(vic.id);
     game.logEvent(now, 'violence', `${an} が ${vn} を殺して金を奪った`);
@@ -324,10 +319,10 @@ export class Conversation {
   stop(game: Game, now: number) {
     delete this.isTyping;
     try {
-      // 暴力はLLM駆動(doAttack)に移行。会話終了時は親愛度更新+(当面)自動生殖のみ。
-      maybeReproduce(game, now, this);
+      // 暴力・生殖はLLM駆動。会話終了時は親愛度の更新のみ。
+      bumpConversationAffinity(game, now, this);
     } catch (e) {
-      console.error('repro failed', e);
+      console.error('affinity update failed', e);
     }
     for (const [playerId, member] of this.participants.entries()) {
       const agent = [...game.world.agents.values()].find((a) => a.playerId === playerId);

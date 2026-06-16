@@ -1,14 +1,14 @@
 import { v } from 'convex/values';
 import { agentId, conversationId, parseGameId, playerId } from './ids';
 import { Player, activity } from './player';
-import { Conversation, conversationInputs, doAttack } from './conversation';
+import { Conversation, conversationInputs, doAttack, createChild } from './conversation';
 import { movePlayer } from './movement';
 import { inputHandler } from './inputHandler';
 import { point } from '../util/types';
 import { Descriptions } from '../../data/characters';
 import { AgentDescription } from './agentDescription';
 import { Agent } from './agent';
-import { matchJob, CHILDHOOD_MS } from '../constants';
+import { matchJob, CHILDHOOD_MS, REPRO_COST, MAX_POPULATION } from '../constants';
 
 export const agentInputs = {
   finishRememberConversation: inputHandler({
@@ -95,6 +95,9 @@ export const agentInputs = {
       const actor = game.world.players.get(parseGameId('players', args.actor));
       const target = game.world.players.get(parseGameId('players', args.target));
       if (!actor || !target) return null;
+      const agentOf = (pid: typeof actor.id) =>
+        [...game.world.agents.values()].find((a) => a.playerId === pid);
+      const isChild = (p: Player) => p.bornAt !== undefined && now - p.bornAt < CHILDHOOD_MS;
       if (args.kind === 'give') {
         const amt = Math.min(Math.max(0, Math.floor(args.amount)), actor.money);
         if (amt > 0) {
@@ -103,6 +106,46 @@ export const agentInputs = {
         }
       } else if (args.kind === 'attack') {
         doAttack(game, now, actor, target);
+      } else if (args.kind === 'propose') {
+        // 結婚の申し込み。相互に申し込めば成立(一夫一妻)
+        const aA = agentOf(actor.id);
+        const aT = agentOf(target.id);
+        if (aA && aT && !aA.spouse && !aT.spouse) {
+          aA.proposeTo = target.id;
+          if (aT.proposeTo === actor.id) {
+            aA.spouse = target.id;
+            aT.spouse = actor.id;
+            delete aA.proposeTo;
+            delete aT.proposeTo;
+            const n1 = game.playerDescriptions.get(actor.id)?.name ?? '誰か';
+            const n2 = game.playerDescriptions.get(target.id)?.name ?? '誰か';
+            game.logEvent(now, 'marriage', `${n1} と ${n2} が結婚した`);
+          }
+        }
+      } else if (args.kind === 'child') {
+        // 子を望む。夫婦かつ双方が望み、両者が養育費を払えれば誕生
+        const aA = agentOf(actor.id);
+        const aT = agentOf(target.id);
+        if (
+          aA &&
+          aT &&
+          aA.spouse === target.id &&
+          aT.spouse === actor.id &&
+          !isChild(actor) &&
+          !isChild(target)
+        ) {
+          aA.wantChildWith = target.id;
+          if (
+            aT.wantChildWith === actor.id &&
+            actor.money >= REPRO_COST &&
+            target.money >= REPRO_COST &&
+            game.world.players.size < MAX_POPULATION
+          ) {
+            delete aA.wantChildWith;
+            delete aT.wantChildWith;
+            createChild(game, now, actor, target);
+          }
+        }
       }
       // 'ask'(送金依頼)は発言そのもので相手に伝わるため、エンジン側の処理は無し
       return null;

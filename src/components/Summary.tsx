@@ -14,6 +14,7 @@ function icon(kind: string) {
   if (kind === 'birth') return '👶';
   if (kind === 'violence') return '💀';
   if (kind === 'death') return '🪦';
+  if (kind === 'marriage') return '💍';
   return '•';
 }
 

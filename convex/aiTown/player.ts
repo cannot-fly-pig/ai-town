@@ -142,6 +142,11 @@ export class Player {
     if (this.hunger >= 100) {
       // 対応するagentも消す(agent.tickがplayer不在でthrowするため)
       const deadAgent = [...game.world.agents.values()].find((a) => a.playerId === this.id);
+      if (deadAgent?.spouse) {
+        // 配偶者がいれば残された側の婚姻を解除(再婚可能に)
+        const sp = [...game.world.agents.values()].find((a) => a.playerId === deadAgent.spouse);
+        if (sp) delete sp.spouse;
+      }
       if (deadAgent) {
         game.world.agents.delete(deadAgent.id);
       }
