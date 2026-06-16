@@ -131,3 +131,9 @@ export const CHILD_NAMES = [
 ];
 // 子供期間: この間は労働・収入なし、食費は親が払う。過ぎると大人になり自立。
 export const CHILDHOOD_MS = 30 * 60 * 1000; // 約30分(sim稼働時間)で成人
+
+// --- 暴力 ---
+// 憎悪(親愛度がこの値以下)か、困窮した者が金持ちを狙う時、襲撃が起こりうる。
+export const HATE_THRESHOLD = -5; // これ以下の親愛度で殺意がわく
+export const VIOLENCE_PROB = 0.35; // 条件成立時に実際に襲う確率
+export const ROBBERY_GAP = 25; // 相手がこれだけ自分より裕福なら強盗の動機になる

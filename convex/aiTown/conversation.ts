@@ -17,6 +17,10 @@ import {
   AFFINITY_MAX_DELTA,
   REPRO_AFFINITY,
   CHILDHOOD_MS,
+  HATE_THRESHOLD,
+  VIOLENCE_PROB,
+  ROBBERY_GAP,
+  FOOD_COST,
 } from '../constants';
 import { distance, normalize, vector } from '../util/geometry';
 import { Point } from '../util/types';
@@ -94,6 +98,40 @@ function maybeReproduce(game: Game, now: number, conversation: Conversation) {
   game.agentDescriptions.set(agentId, new AgentDescription({ agentId, identity, plan }));
   game.descriptionsModified = true;
   console.log(`👶 ${childName} が ${name0} と ${name1} の子として生まれた`);
+}
+
+// 会話終了時: 憎悪または困窮が引き金で襲撃が起こりうる。死ぬと所持金は奪われる。戻り値=誰か死んだか
+function maybeViolence(game: Game, now: number, conversation: Conversation): boolean {
+  const ids = [...conversation.participants.keys()];
+  if (ids.length !== 2) return false;
+  const ps = ids.map((id) => game.world.players.get(id)).filter((p): p is Player => !!p);
+  if (ps.length !== 2) return false;
+  const pairs: [Player, Player][] = [
+    [ps[0], ps[1]],
+    [ps[1], ps[0]],
+  ];
+  for (const [atk, vic] of pairs) {
+    if (atk.human || vic.human) continue;
+    const atkAgent = [...game.world.agents.values()].find((a) => a.playerId === atk.id);
+    if (!atkAgent) continue;
+    const aff = atkAgent.relationships[vic.id] ?? 0;
+    const desperate = atk.money < FOOD_COST && atk.hunger > 70;
+    const robbery = desperate && vic.money >= atk.money + ROBBERY_GAP;
+    const hatred = aff <= HATE_THRESHOLD;
+    if (!hatred && !robbery) continue;
+    if (Math.random() > VIOLENCE_PROB) continue;
+    // 襲撃成立: 被害者は死に、所持金を奪われる
+    atk.money += Math.max(0, vic.money);
+    const vicAgent = [...game.world.agents.values()].find((a) => a.playerId === vic.id);
+    if (vicAgent) game.world.agents.delete(vicAgent.id);
+    // leave() は今stop中の会話を再帰的にstopしてしまうので、直接削除する
+    game.world.players.delete(vic.id);
+    const an = game.playerDescriptions.get(atk.id)?.name ?? '誰か';
+    const vn = game.playerDescriptions.get(vic.id)?.name ?? '誰か';
+    console.log(`💀 ${an} が ${vn} を殺した (${hatred ? '憎悪' : '強盗'})`);
+    return true;
+  }
+  return false;
 }
 
 export class Conversation {
@@ -277,9 +315,10 @@ export class Conversation {
   stop(game: Game, now: number) {
     delete this.isTyping;
     try {
-      maybeReproduce(game, now, this);
+      const killed = maybeViolence(game, now, this);
+      if (!killed) maybeReproduce(game, now, this);
     } catch (e) {
-      console.error('reproduction failed', e);
+      console.error('repro/violence failed', e);
     }
     for (const [playerId, member] of this.participants.entries()) {
       const agent = [...game.world.agents.values()].find((a) => a.playerId === playerId);
