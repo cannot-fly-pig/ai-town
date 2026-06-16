@@ -36,6 +36,8 @@ export class Agent {
   };
   // 相手playerId -> 親愛度。会話を重ねると上がる。生殖・恋愛の基盤。
   relationships: Record<string, number>;
+  // 襲われた等の心的外傷。会話プロンプトに滲み、語ることで噂になる。
+  recentTrauma?: { text: string; ts: number };
 
   constructor(serialized: SerializedAgent) {
     const { id, lastConversation, lastInviteAttempt, inProgressOperation } = serialized;
@@ -50,6 +52,7 @@ export class Agent {
     this.lastInviteAttempt = lastInviteAttempt;
     this.inProgressOperation = inProgressOperation;
     this.relationships = serialized.relationships ?? {};
+    this.recentTrauma = serialized.recentTrauma;
   }
 
   bumpAffinity(otherPlayerId: string, amount: number) {
@@ -273,6 +276,7 @@ export class Agent {
       lastInviteAttempt: this.lastInviteAttempt,
       inProgressOperation: this.inProgressOperation,
       relationships: this.relationships,
+      recentTrauma: this.recentTrauma,
     };
   }
 }
@@ -291,6 +295,7 @@ export const serializedAgent = {
     }),
   ),
   relationships: v.optional(v.record(v.string(), v.number())),
+  recentTrauma: v.optional(v.object({ text: v.string(), ts: v.number() })),
 };
 export type SerializedAgent = ObjectType<typeof serializedAgent>;
 

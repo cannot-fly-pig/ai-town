@@ -6,7 +6,7 @@ import * as memory from './memory';
 import { api, internal } from '../_generated/api';
 import * as embeddingsCache from './embeddingsCache';
 import { GameId, conversationId, playerId } from '../aiTown/ids';
-import { NUM_MEMORIES_TO_SEARCH } from '../constants';
+import { NUM_MEMORIES_TO_SEARCH, TRAUMA_DURATION_MS } from '../constants';
 
 const selfInternal = internal.agent.conversation;
 
@@ -25,6 +25,18 @@ function statePrompt(player: { money: number; hunger: number }): string {
   s +=
     ' あなたは自分の生存と蓄えを第一に考える現実的な人間だ。金は厳しい労働で得たもので、安易に他人へ金や食料を恵んだりはしない。困っている相手にも、まず自分の取り分を守る。';
   return s;
+}
+
+// この世界の理(死・恋愛と生殖・暴力)を住人に自覚させる
+const WORLD_RULES =
+  'この世界の理: 食料を買えず空腹が極まれば死ぬ——死は誰しも恐ろしい。強く愛し合った相手とだけ結ばれ、子をもうけることがある。金や深い恨みのために人を襲うことがあり、襲えば金を奪える(時に相手は命を落とす)。襲われた者は奪われ、恐怖と恨みを抱く。';
+
+// 襲われた等の心的外傷を会話に滲ませる(語ることで噂になる)
+function traumaPrompt(agent: any): string {
+  const t = agent?.recentTrauma;
+  if (!t) return '';
+  if (Date.now() - t.ts > TRAUMA_DURATION_MS) return '';
+  return `最近あなたは恐ろしい目に遭った: ${t.text}。その恐怖と怒りが消えず、人と話すとつい口に出てしまう。`;
 }
 
 // 相手への親愛度(符号付き)を会話の態度に反映する
@@ -82,6 +94,8 @@ export async function startConversationMessage(
   prompt.push(
     affinityPrompt(otherPlayer.name, (agent as any)?.relationships?.[(otherPlayer as any).id] ?? 0),
   );
+  prompt.push(traumaPrompt(agent));
+  prompt.push(WORLD_RULES);
   prompt.push(LANGUAGE_INSTRUCTION);
   const lastPrompt = `${player.name} to ${otherPlayer.name}:`;
   prompt.push(lastPrompt);
@@ -143,6 +157,8 @@ export async function continueConversationMessage(
   prompt.push(
     affinityPrompt(otherPlayer.name, (agent as any)?.relationships?.[(otherPlayer as any).id] ?? 0),
   );
+  prompt.push(traumaPrompt(agent));
+  prompt.push(WORLD_RULES);
   prompt.push(LANGUAGE_INSTRUCTION);
 
   const llmMessages: LLMMessage[] = [
@@ -198,6 +214,8 @@ export async function leaveConversationMessage(
   prompt.push(
     affinityPrompt(otherPlayer.name, (agent as any)?.relationships?.[(otherPlayer as any).id] ?? 0),
   );
+  prompt.push(traumaPrompt(agent));
+  prompt.push(WORLD_RULES);
   prompt.push(LANGUAGE_INSTRUCTION);
   const llmMessages: LLMMessage[] = [
     {

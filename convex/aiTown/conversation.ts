@@ -21,6 +21,9 @@ import {
   VIOLENCE_PROB,
   ROBBERY_GAP,
   FOOD_COST,
+  LETHAL_PROB,
+  ROBBERY_STEAL_MIN,
+  ROBBERY_STEAL_MAX,
 } from '../constants';
 import { distance, normalize, vector } from '../util/geometry';
 import { Point } from '../util/types';
@@ -120,15 +123,29 @@ function maybeViolence(game: Game, now: number, conversation: Conversation): boo
     const hatred = aff <= HATE_THRESHOLD;
     if (!hatred && !robbery) continue;
     if (Math.random() > VIOLENCE_PROB) continue;
-    // 襲撃成立: 被害者は死に、所持金を奪われる
-    atk.money += Math.max(0, vic.money);
-    const vicAgent = [...game.world.agents.values()].find((a) => a.playerId === vic.id);
-    if (vicAgent) game.world.agents.delete(vicAgent.id);
-    // leave() は今stop中の会話を再帰的にstopしてしまうので、直接削除する
-    game.world.players.delete(vic.id);
     const an = game.playerDescriptions.get(atk.id)?.name ?? '誰か';
     const vn = game.playerDescriptions.get(vic.id)?.name ?? '誰か';
-    game.logEvent(now, 'violence', `${an} が ${vn} を殺した (${hatred ? '憎悪' : '強盗'})`);
+    const motive = hatred ? '憎悪' : '強盗';
+    const vicAgent = [...game.world.agents.values()].find((a) => a.playerId === vic.id);
+    if (Math.random() < LETHAL_PROB) {
+      // 致死: 殺して全額奪う
+      atk.money += Math.max(0, vic.money);
+      if (vicAgent) game.world.agents.delete(vicAgent.id);
+      // leave() は今stop中の会話を再帰的にstopしてしまうので、直接削除する
+      game.world.players.delete(vic.id);
+      game.logEvent(now, 'violence', `${an} が ${vn} を殺して金を奪った (${motive})`);
+    } else {
+      // 非致死: 一部だけ奪い、被害者は生き延びる→恨みと心的外傷が残る(噂の種)
+      const frac = ROBBERY_STEAL_MIN + Math.random() * (ROBBERY_STEAL_MAX - ROBBERY_STEAL_MIN);
+      const steal = Math.floor(Math.max(0, vic.money) * frac);
+      vic.money -= steal;
+      atk.money += steal;
+      if (vicAgent) {
+        vicAgent.bumpAffinity(atk.id, -6);
+        vicAgent.recentTrauma = { text: `${an}に襲われ、金${steal}を奪われた`, ts: now };
+      }
+      game.logEvent(now, 'violence', `${an} が ${vn} を襲い金${steal}を奪った(${vn}は生き延びた)`);
+    }
     return true;
   }
   return false;
