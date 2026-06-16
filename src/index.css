@@ -1,3 +1,6 @@
+/* 日本語対応のピクセルフォント(レトロな見た目を保ったまま日本語グリフを供給) */
+@import url('https://fonts.googleapis.com/css2?family=DotGothic16&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -17,11 +20,18 @@
 }
 
 .font-body {
-  font-family: 'VCR OSD Mono', 'monospace';
+  font-family: 'DotGothic16', 'VCR OSD Mono', 'monospace';
 }
 
 .font-system {
   font-family: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+}
+
+/* チャット(会話パネル)は確実に日本語が出るフォントで描画 */
+.chats,
+.chats p,
+.bubble p {
+  font-family: 'DotGothic16', 'VCR OSD Mono', 'monospace';
 }
 
 :root {

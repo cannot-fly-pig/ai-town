@@ -10,6 +10,10 @@ import { NUM_MEMORIES_TO_SEARCH } from '../constants';
 
 const selfInternal = internal.agent.conversation;
 
+// 町の住人は日本語で話す
+const LANGUAGE_INSTRUCTION =
+  '重要: あなたは日本人で、必ず自然な日本語で返答すること。英語や中国語は使わない。';
+
 export async function startConversationMessage(
   ctx: ActionCtx,
   worldId: Id<'worlds'>,
@@ -52,6 +56,7 @@ export async function startConversationMessage(
       `Be sure to include some detail or question about a previous conversation in your greeting.`,
     );
   }
+  prompt.push(LANGUAGE_INSTRUCTION);
   const lastPrompt = `${player.name} to ${otherPlayer.name}:`;
   prompt.push(lastPrompt);
 
@@ -108,6 +113,7 @@ export async function continueConversationMessage(
     `Below is the current chat history between you and ${otherPlayer.name}.`,
     `DO NOT greet them again. Do NOT use the word "Hey" too often. Your response should be brief and within 200 characters.`,
   );
+  prompt.push(LANGUAGE_INSTRUCTION);
 
   const llmMessages: LLMMessage[] = [
     {
@@ -158,6 +164,7 @@ export async function leaveConversationMessage(
     `Below is the current chat history between you and ${otherPlayer.name}.`,
     `How would you like to tell them that you're leaving? Your response should be brief and within 200 characters.`,
   );
+  prompt.push(LANGUAGE_INSTRUCTION);
   const llmMessages: LLMMessage[] = [
     {
       role: 'system',
