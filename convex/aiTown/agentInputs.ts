@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
-import { agentId, conversationId, parseGameId } from './ids';
+import { agentId, conversationId, parseGameId, playerId } from './ids';
 import { Player, activity } from './player';
-import { Conversation, conversationInputs } from './conversation';
+import { Conversation, conversationInputs, doAttack } from './conversation';
 import { movePlayer } from './movement';
 import { inputHandler } from './inputHandler';
 import { point } from '../util/types';
@@ -80,6 +80,31 @@ export const agentInputs = {
           player.hunger = Math.min(100, player.hunger + job.hunger);
         }
       }
+      return null;
+    },
+  }),
+  // LLMが会話中に選んだ行動を実行する(give=送金 / attack=襲撃 / ask=台詞のみ)
+  agentAction: inputHandler({
+    args: {
+      actor: playerId,
+      target: playerId,
+      kind: v.string(),
+      amount: v.number(),
+    },
+    handler: (game, now, args) => {
+      const actor = game.world.players.get(parseGameId('players', args.actor));
+      const target = game.world.players.get(parseGameId('players', args.target));
+      if (!actor || !target) return null;
+      if (args.kind === 'give') {
+        const amt = Math.min(Math.max(0, Math.floor(args.amount)), actor.money);
+        if (amt > 0) {
+          actor.money -= amt;
+          target.money += amt;
+        }
+      } else if (args.kind === 'attack') {
+        doAttack(game, now, actor, target);
+      }
+      // 'ask'(送金依頼)は発言そのもので相手に伝わるため、エンジン側の処理は無し
       return null;
     },
   }),

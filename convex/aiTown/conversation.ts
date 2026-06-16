@@ -115,52 +115,32 @@ function maybeReproduce(game: Game, now: number, conversation: Conversation) {
   game.logEvent(now, 'birth', `${childName} が ${name0} と ${name1} の子として生まれた`);
 }
 
-// 会話終了時: 憎悪または困窮が引き金で襲撃が起こりうる。死ぬと所持金は奪われる。戻り値=誰か死んだか
-function maybeViolence(game: Game, now: number, conversation: Conversation): boolean {
-  const ids = [...conversation.participants.keys()];
-  if (ids.length !== 2) return false;
-  const ps = ids.map((id) => game.world.players.get(id)).filter((p): p is Player => !!p);
-  if (ps.length !== 2) return false;
-  const pairs: [Player, Player][] = [
-    [ps[0], ps[1]],
-    [ps[1], ps[0]],
-  ];
-  for (const [atk, vic] of pairs) {
-    if (atk.human || vic.human) continue;
-    const atkAgent = [...game.world.agents.values()].find((a) => a.playerId === atk.id);
-    if (!atkAgent) continue;
-    const aff = atkAgent.relationships[vic.id] ?? 0;
-    const desperate = atk.money < FOOD_COST && atk.hunger > 70;
-    const robbery = desperate && vic.money >= atk.money + ROBBERY_GAP;
-    const hatred = aff <= HATE_THRESHOLD;
-    if (!hatred && !robbery) continue;
-    if (Math.random() > VIOLENCE_PROB) continue;
-    const an = game.playerDescriptions.get(atk.id)?.name ?? '誰か';
-    const vn = game.playerDescriptions.get(vic.id)?.name ?? '誰か';
-    const motive = hatred ? '憎悪' : '強盗';
-    const vicAgent = [...game.world.agents.values()].find((a) => a.playerId === vic.id);
-    if (Math.random() < LETHAL_PROB) {
-      // 致死: 殺して全額奪う
-      atk.money += Math.max(0, vic.money);
-      if (vicAgent) game.world.agents.delete(vicAgent.id);
-      // leave() は今stop中の会話を再帰的にstopしてしまうので、直接削除する
-      game.world.players.delete(vic.id);
-      game.logEvent(now, 'violence', `${an} が ${vn} を殺して金を奪った (${motive})`);
-    } else {
-      // 非致死: 一部だけ奪い、被害者は生き延びる→恨みと心的外傷が残る(噂の種)
-      const frac = ROBBERY_STEAL_MIN + Math.random() * (ROBBERY_STEAL_MAX - ROBBERY_STEAL_MIN);
-      const steal = Math.floor(Math.max(0, vic.money) * frac);
-      vic.money -= steal;
-      atk.money += steal;
-      if (vicAgent) {
-        vicAgent.bumpAffinity(atk.id, -6);
-        vicAgent.recentTrauma = { text: `${an}に襲われ、金${steal}を奪われた`, ts: now };
-      }
-      game.logEvent(now, 'violence', `${an} が ${vn} を襲い金${steal}を奪った(${vn}は生き延びた)`);
+// LLMが「襲う」と決めた時に実行する(判定はLLM側、ここは結果処理)。致死 or 非致死。
+export function doAttack(game: Game, now: number, atk: Player, vic: Player) {
+  if (vic.human) return;
+  const an = game.playerDescriptions.get(atk.id)?.name ?? '誰か';
+  const vn = game.playerDescriptions.get(vic.id)?.name ?? '誰か';
+  const vicAgent = [...game.world.agents.values()].find((a) => a.playerId === vic.id);
+  if (Math.random() < LETHAL_PROB) {
+    // 致死: 殺して全額奪う。被害者の会話は畳む(宙ぶらりん防止)
+    atk.money += Math.max(0, vic.money);
+    const conv = [...game.world.conversations.values()].find((c) => c.participants.has(vic.id));
+    if (conv) game.world.conversations.delete(conv.id);
+    if (vicAgent) game.world.agents.delete(vicAgent.id);
+    game.world.players.delete(vic.id);
+    game.logEvent(now, 'violence', `${an} が ${vn} を殺して金を奪った`);
+  } else {
+    // 非致死: 一部だけ奪い被害者は生存→恨みとtrauma(噂の種)
+    const frac = ROBBERY_STEAL_MIN + Math.random() * (ROBBERY_STEAL_MAX - ROBBERY_STEAL_MIN);
+    const steal = Math.floor(Math.max(0, vic.money) * frac);
+    vic.money -= steal;
+    atk.money += steal;
+    if (vicAgent) {
+      vicAgent.bumpAffinity(atk.id, -6);
+      vicAgent.recentTrauma = { text: `${an}に襲われ、金${steal}を奪われた`, ts: now };
     }
-    return true;
+    game.logEvent(now, 'violence', `${an} が ${vn} を襲い金${steal}を奪った(${vn}は生き延びた)`);
   }
-  return false;
 }
 
 export class Conversation {
@@ -344,10 +324,10 @@ export class Conversation {
   stop(game: Game, now: number) {
     delete this.isTyping;
     try {
-      const killed = maybeViolence(game, now, this);
-      if (!killed) maybeReproduce(game, now, this);
+      // 暴力はLLM駆動(doAttack)に移行。会話終了時は親愛度更新+(当面)自動生殖のみ。
+      maybeReproduce(game, now, this);
     } catch (e) {
-      console.error('repro/violence failed', e);
+      console.error('repro failed', e);
     }
     for (const [playerId, member] of this.participants.entries()) {
       const agent = [...game.world.agents.values()].find((a) => a.playerId === playerId);

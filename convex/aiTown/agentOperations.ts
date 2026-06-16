@@ -70,7 +70,7 @@ export const agentGenerateMessage = internalAction({
       default:
         assertNever(args.type);
     }
-    const text = await completionFn(
+    const { text, action } = await completionFn(
       ctx,
       args.worldId,
       args.conversationId as GameId<'conversations'>,
@@ -78,6 +78,7 @@ export const agentGenerateMessage = internalAction({
       args.otherPlayerId as GameId<'players'>,
     );
 
+    const wantsLeave = args.type === 'leave' || action?.kind === 'leave';
     await ctx.runMutation(internal.aiTown.agent.agentSendMessage, {
       worldId: args.worldId,
       conversationId: args.conversationId,
@@ -85,9 +86,23 @@ export const agentGenerateMessage = internalAction({
       playerId: args.playerId,
       text,
       messageUuid: args.messageUuid,
-      leaveConversation: args.type === 'leave',
+      leaveConversation: wantsLeave,
       operationId: args.operationId,
     });
+
+    // LLMが選んだ行動(attack/give/ask等)をエンジンに入力として送る
+    if (action && action.kind !== 'leave' && action.kind !== 'none') {
+      await ctx.runMutation(api.aiTown.main.sendInput, {
+        worldId: args.worldId,
+        name: 'agentAction',
+        args: {
+          actor: args.playerId,
+          target: args.otherPlayerId,
+          kind: action.kind,
+          amount: action.amount ?? 0,
+        },
+      });
+    }
   },
 });
 

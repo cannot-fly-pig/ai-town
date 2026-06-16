@@ -39,6 +39,25 @@ function traumaPrompt(agent: any): string {
   return `最近あなたは恐ろしい目に遭った: ${t.text}。その恐怖と怒りが消えず、人と話すとつい口に出てしまう。`;
 }
 
+// LLMが会話の中で能動的に取れる行動。発言の最後に1行で書かせ、解析して実行する。
+export type ActionTag = { kind: string; amount?: number };
+const ACTION_INSTRUCTION =
+  'あなたは話すだけでなく、相手に対して行動を取れる。取る場合のみ、発言の最後に独立した1行で次の形式を書く(取らないなら何も書かない):\n' +
+  '[ACT:attack] = 相手を襲って金を奪う(心底憎い、または困窮して金がどうしても要る時)\n' +
+  '[ACT:give:金額] = 相手に金を渡す\n' +
+  '[ACT:ask:金額] = 相手に金をせがむ\n' +
+  '[ACT:leave] = 会話を切り上げて立ち去る\n' +
+  '行動は本心に従って選ぶこと。利己的なあなたは滅多に金を渡さない。タグは発言の最後に1個だけ書き、その後には何も書かない。';
+
+// 発言テキストから行動タグを抜き出し、本文と行動に分ける(タグ以降は本文から除去)
+function parseAction(text: string): { text: string; action: ActionTag | null } {
+  const m = text.match(/\[ACT:(\w+)(?::(\d+))?\]/i);
+  if (!m) return { text: text.trim(), action: null };
+  const action: ActionTag = { kind: m[1].toLowerCase() };
+  if (m[2]) action.amount = parseInt(m[2], 10);
+  return { text: text.slice(0, m.index).trim(), action };
+}
+
 // 相手への親愛度(符号付き)を会話の態度に反映する
 function affinityPrompt(otherName: string, aff: number): string {
   if (aff >= 5) return `あなたは${otherName}に強い好意・愛情を抱いている。言葉の端々に温かさがにじむ。`;
@@ -54,7 +73,7 @@ export async function startConversationMessage(
   conversationId: GameId<'conversations'>,
   playerId: GameId<'players'>,
   otherPlayerId: GameId<'players'>,
-): Promise<string> {
+): Promise<{ text: string; action: ActionTag | null }> {
   const { player, otherPlayer, agent, otherAgent, lastConversation } = await ctx.runQuery(
     selfInternal.queryPromptData,
     {
@@ -96,6 +115,7 @@ export async function startConversationMessage(
   );
   prompt.push(traumaPrompt(agent));
   prompt.push(WORLD_RULES);
+  prompt.push(ACTION_INSTRUCTION);
   prompt.push(LANGUAGE_INSTRUCTION);
   const lastPrompt = `${player.name} to ${otherPlayer.name}:`;
   prompt.push(lastPrompt);
@@ -110,7 +130,7 @@ export async function startConversationMessage(
     max_tokens: 300,
     stop: stopWords(otherPlayer.name, player.name),
   });
-  return trimContentPrefx(content, lastPrompt);
+  return parseAction(trimContentPrefx(content, lastPrompt));
 }
 
 function trimContentPrefx(content: string, prompt: string) {
@@ -126,7 +146,7 @@ export async function continueConversationMessage(
   conversationId: GameId<'conversations'>,
   playerId: GameId<'players'>,
   otherPlayerId: GameId<'players'>,
-): Promise<string> {
+): Promise<{ text: string; action: ActionTag | null }> {
   const { player, otherPlayer, conversation, agent, otherAgent } = await ctx.runQuery(
     selfInternal.queryPromptData,
     {
@@ -159,6 +179,7 @@ export async function continueConversationMessage(
   );
   prompt.push(traumaPrompt(agent));
   prompt.push(WORLD_RULES);
+  prompt.push(ACTION_INSTRUCTION);
   prompt.push(LANGUAGE_INSTRUCTION);
 
   const llmMessages: LLMMessage[] = [
@@ -182,7 +203,7 @@ export async function continueConversationMessage(
     max_tokens: 300,
     stop: stopWords(otherPlayer.name, player.name),
   });
-  return trimContentPrefx(content, lastPrompt);
+  return parseAction(trimContentPrefx(content, lastPrompt));
 }
 
 export async function leaveConversationMessage(
@@ -191,7 +212,7 @@ export async function leaveConversationMessage(
   conversationId: GameId<'conversations'>,
   playerId: GameId<'players'>,
   otherPlayerId: GameId<'players'>,
-): Promise<string> {
+): Promise<{ text: string; action: ActionTag | null }> {
   const { player, otherPlayer, conversation, agent, otherAgent } = await ctx.runQuery(
     selfInternal.queryPromptData,
     {
@@ -216,6 +237,7 @@ export async function leaveConversationMessage(
   );
   prompt.push(traumaPrompt(agent));
   prompt.push(WORLD_RULES);
+  prompt.push(ACTION_INSTRUCTION);
   prompt.push(LANGUAGE_INSTRUCTION);
   const llmMessages: LLMMessage[] = [
     {
@@ -238,7 +260,7 @@ export async function leaveConversationMessage(
     max_tokens: 300,
     stop: stopWords(otherPlayer.name, player.name),
   });
-  return trimContentPrefx(content, lastPrompt);
+  return parseAction(trimContentPrefx(content, lastPrompt));
 }
 
 function agentPrompts(
