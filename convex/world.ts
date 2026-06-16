@@ -255,3 +255,38 @@ export const previousConversation = query({
     return null;
   },
 });
+
+// サマリーダッシュボード用: 出来事ログ(誕生/死亡/暴力)を新しい順に
+export const recentEvents = query({
+  args: { worldId: v.id('worlds') },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query('events')
+      .withIndex('worldId', (q) => q.eq('worldId', args.worldId))
+      .order('desc')
+      .take(60);
+  },
+});
+
+// サマリーダッシュボード用: 会話の要約(各エージェントが記憶した会話)を新しい順に
+export const recentConversationSummaries = query({
+  args: { worldId: v.id('worlds') },
+  handler: async (ctx, args) => {
+    const mems = await ctx.db.query('memories').order('desc').take(150);
+    const convs = mems.filter((m) => m.data.type === 'conversation').slice(0, 25);
+    const descs = await ctx.db
+      .query('playerDescriptions')
+      .withIndex('worldId', (q) => q.eq('worldId', args.worldId))
+      .collect();
+    const nameOf = new Map(descs.map((d) => [d.playerId, d.name]));
+    return convs.map((m) => ({
+      creationTime: m._creationTime,
+      author: nameOf.get(m.playerId) ?? '誰か',
+      others:
+        m.data.type === 'conversation'
+          ? m.data.playerIds.map((p) => nameOf.get(p) ?? '誰か')
+          : [],
+      summary: m.description,
+    }));
+  },
+});

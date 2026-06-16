@@ -97,7 +97,7 @@ function maybeReproduce(game: Game, now: number, conversation: Conversation) {
   );
   game.agentDescriptions.set(agentId, new AgentDescription({ agentId, identity, plan }));
   game.descriptionsModified = true;
-  console.log(`👶 ${childName} が ${name0} と ${name1} の子として生まれた`);
+  game.logEvent(now, 'birth', `${childName} が ${name0} と ${name1} の子として生まれた`);
 }
 
 // 会話終了時: 憎悪または困窮が引き金で襲撃が起こりうる。死ぬと所持金は奪われる。戻り値=誰か死んだか
@@ -128,7 +128,7 @@ function maybeViolence(game: Game, now: number, conversation: Conversation): boo
     game.world.players.delete(vic.id);
     const an = game.playerDescriptions.get(atk.id)?.name ?? '誰か';
     const vn = game.playerDescriptions.get(vic.id)?.name ?? '誰か';
-    console.log(`💀 ${an} が ${vn} を殺した (${hatred ? '憎悪' : '強盗'})`);
+    game.logEvent(now, 'violence', `${an} が ${vn} を殺した (${hatred ? '憎悪' : '強盗'})`);
     return true;
   }
   return false;

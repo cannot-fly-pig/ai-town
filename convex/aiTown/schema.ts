@@ -76,4 +76,12 @@ export const aiTownTables = {
     .index('edge', ['worldId', 'player1', 'player2', 'ended'])
     .index('conversation', ['worldId', 'player1', 'conversationId'])
     .index('playerHistory', ['worldId', 'player1', 'ended']),
+
+  // 出来事ログ(誕生/死亡/暴力)。サマリーダッシュボード用。
+  events: defineTable({
+    worldId: v.id('worlds'),
+    ts: v.number(),
+    kind: v.string(), // 'birth' | 'death' | 'violence'
+    text: v.string(),
+  }).index('worldId', ['worldId']),
 };

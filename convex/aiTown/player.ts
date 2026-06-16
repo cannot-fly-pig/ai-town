@@ -145,7 +145,8 @@ export class Player {
       if (deadAgent) {
         game.world.agents.delete(deadAgent.id);
       }
-      console.log(`${this.id} は餓死した`);
+      const deadName = game.playerDescriptions.get(this.id)?.name ?? '誰か';
+      game.logEvent(now, 'death', `${deadName} が餓死した`);
       this.leave(game, now);
     }
   }

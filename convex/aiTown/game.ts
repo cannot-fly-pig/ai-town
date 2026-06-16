@@ -40,6 +40,7 @@ const gameStateDiff = v.object({
   agentDescriptions: v.optional(v.array(v.object(serializedAgentDescription))),
   worldMap: v.optional(v.object(serializedWorldMap)),
   agentOperations: v.array(v.object({ name: v.string(), args: v.any() })),
+  events: v.array(v.object({ ts: v.number(), kind: v.string(), text: v.string() })),
 });
 type GameStateDiff = Infer<typeof gameStateDiff>;
 
@@ -59,6 +60,13 @@ export class Game extends AbstractGame {
   agentDescriptions: Map<GameId<'agents'>, AgentDescription>;
 
   pendingOperations: Array<{ name: string; args: any }> = [];
+  // 出来事ログ(誕生/死亡/暴力)。diff経由でeventsテーブルに永続化される。
+  pendingEvents: Array<{ ts: number; kind: string; text: string }> = [];
+
+  logEvent(ts: number, kind: string, text: string) {
+    this.pendingEvents.push({ ts, kind, text });
+    console.log(`[event:${kind}] ${text}`);
+  }
 
   numPathfinds: number;
 
@@ -236,8 +244,10 @@ export class Game extends AbstractGame {
     const result: GameStateDiff = {
       world: { ...this.world.serialize(), historicalLocations },
       agentOperations: this.pendingOperations,
+      events: this.pendingEvents,
     };
     this.pendingOperations = [];
+    this.pendingEvents = [];
     if (this.descriptionsModified) {
       result.playerDescriptions = serializeMap(this.playerDescriptions);
       result.agentDescriptions = serializeMap(this.agentDescriptions);
@@ -339,6 +349,10 @@ export class Game extends AbstractGame {
       } else {
         await ctx.db.insert('maps', { worldId, ...worldMap });
       }
+    }
+    // 出来事ログを永続化(誕生/死亡/暴力)。
+    for (const e of diff.events) {
+      await ctx.db.insert('events', { worldId, ...e });
     }
     // Start the desired agent operations.
     for (const operation of diff.agentOperations) {

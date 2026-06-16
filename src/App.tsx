@@ -16,9 +16,11 @@ import InteractButton from './components/buttons/InteractButton.tsx';
 import FreezeButton from './components/FreezeButton.tsx';
 import { MAX_HUMAN_PLAYERS } from '../convex/constants.ts';
 import PoweredByConvex from './components/PoweredByConvex.tsx';
+import Summary from './components/Summary.tsx';
 
 export default function Home() {
   const [helpModalOpen, setHelpModalOpen] = useState(false);
+  const [summaryOpen, setSummaryOpen] = useState(false);
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-between font-body game-background">
       <PoweredByConvex />
@@ -62,6 +64,16 @@ export default function Home() {
           </p>
         </div>
       </ReactModal>
+
+      <ReactModal
+        isOpen={summaryOpen}
+        onRequestClose={() => setSummaryOpen(false)}
+        style={summaryModalStyles}
+        contentLabel="Summary modal"
+        ariaHideApp={false}
+      >
+        <Summary />
+      </ReactModal>
       {/*<div className="p-3 absolute top-0 right-0 z-10 text-2xl">
         <Authenticated>
           <UserButton afterSignOutUrl="/ai-town" />
@@ -99,6 +111,9 @@ export default function Home() {
             <Button imgUrl={helpImg} onClick={() => setHelpModalOpen(true)}>
               Help
             </Button>
+            <Button imgUrl={starImg} onClick={() => setSummaryOpen(true)}>
+              記録
+            </Button>
           </div>
           <a href="https://a16z.com">
             <img className="w-8 h-8 pointer-events-auto" src={a16zImg} alt="a16z" />
@@ -132,5 +147,28 @@ const modalStyles = {
     background: 'rgb(35, 38, 58)',
     color: 'white',
     fontFamily: '"Upheaval Pro", "sans-serif"',
+  },
+};
+
+const summaryModalStyles = {
+  overlay: {
+    backgroundColor: 'rgb(0, 0, 0, 75%)',
+    zIndex: 12,
+  },
+  content: {
+    top: '50%',
+    left: '50%',
+    right: 'auto',
+    bottom: 'auto',
+    marginRight: '-50%',
+    transform: 'translate(-50%, -50%)',
+    maxWidth: '72%',
+    maxHeight: '88%',
+    overflowY: 'auto' as const,
+    border: '10px solid rgb(23, 20, 33)',
+    borderRadius: '0',
+    background: 'rgb(35, 38, 58)',
+    color: 'white',
+    fontFamily: '"VCR OSD Mono", "monospace"',
   },
 };
