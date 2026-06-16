@@ -73,7 +73,19 @@ function maybeReproduce(game: Game, now: number, conversation: Conversation) {
   const d1 = game.playerDescriptions.get(parents[1].id);
   const name0 = d0?.name ?? '誰か';
   const name1 = d1?.name ?? '誰か';
-  const childName = CHILD_NAMES[Math.floor(Math.random() * CHILD_NAMES.length)];
+  // 生存者と被らない名前を付ける(被ったら連番)。家系を追えるようにユニーク化。
+  const livingNames = new Set(
+    [...game.world.players.values()]
+      .map((p) => game.playerDescriptions.get(p.id)?.name)
+      .filter((n): n is string => !!n),
+  );
+  const base = CHILD_NAMES[Math.floor(Math.random() * CHILD_NAMES.length)];
+  let childName = base;
+  let suffix = 2;
+  while (livingNames.has(childName)) {
+    childName = `${base}${suffix}`;
+    suffix++;
+  }
   const character = d0?.character ?? 'f1';
   const identity = `${childName}は${name0}と${name1}の子としてこの町に生まれた。両親の気質を受け継いでいる。世間はまだ知らないが、いつか自分の力で生きていこうとするだろう。`;
   const plan = '世界を知り、いずれ自分の力で生き抜きたい。';
