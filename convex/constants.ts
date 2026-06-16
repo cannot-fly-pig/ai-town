@@ -80,11 +80,39 @@ export const DEFAULT_NAME = 'Me';
 // --- 生存ループ (money / hunger / 餓死) ---
 // hunger は時間で 0→100 に上昇。100 で餓死。
 export const HUNGER_PER_MS = 0.0001; // 約16分で空腹MAX
-// 受動収入(働き)。食費(約0.96/分)未満にして、金が徐々に減り貧しい者から餓死するようにする。
-export const INCOME_PER_MS = 0.000012; // 約0.72/分(食費 < これ なので緩やかに赤字)
+// 受動収入は雀の涙(最低限の糊口)。稼ぎは基本「働く」こと。働かない者は貧しくなる。
+export const INCOME_PER_MS = 0.000006; // 約0.36/分
 // 空腹がこの値以上 かつ 金があれば自動で食事。
 export const EAT_THRESHOLD = 50;
 export const FOOD_COST = 8; // 1食の値段
 // 開始時の所持金 (下限 + ランダム幅)。
 export const START_MONEY_MIN = 40;
 export const START_MONEY_RANGE = 80; // 40〜120
+
+// --- 労働(貧富の差の原動力) ---
+// 仕事をすると pay 分の金が入り hunger が増える。
+// revealed=false の高給な仕事は最初は隠され、噂(hint)を頼りに自分で見つけた者が金持ちになる。
+export type Job = {
+  key: string;
+  label: string;
+  pay: number;
+  hunger: number;
+  revealed: boolean;
+  emoji: string;
+  hint?: string;
+  keywords: string[];
+};
+export const JOBS: Job[] = [
+  { key: 'farm', label: '畑仕事', pay: 6, hunger: 12, revealed: true, emoji: '🥕', keywords: ['畑', '農', '耕', '野菜', '種ま'] },
+  { key: 'shop', label: '店番', pay: 7, hunger: 8, revealed: true, emoji: '🛒', keywords: ['店', '売', '商', '接客'] },
+  { key: 'wood', label: '木こり', pay: 8, hunger: 14, revealed: true, emoji: '🪓', keywords: ['木を切', '薪', '伐採', '木こり'] },
+  { key: 'fish', label: '漁', pay: 14, hunger: 16, revealed: false, emoji: '🎣', hint: '湖の方では魚がよく獲れるという話を聞いた', keywords: ['漁', '魚', '釣'] },
+  { key: 'mine', label: '採掘', pay: 30, hunger: 22, revealed: false, emoji: '⛏️', hint: '北の山には金脈が眠っているという噂がある', keywords: ['採掘', '鉱', '金を掘', '山を掘', '金脈'] },
+];
+// 行動の説明文に仕事のキーワードが含まれていればその仕事と判定。
+export function matchJob(description: string): Job | null {
+  for (const j of JOBS) {
+    if (j.keywords.some((k) => description.includes(k))) return j;
+  }
+  return null;
+}
