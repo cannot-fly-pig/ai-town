@@ -60,6 +60,14 @@ function parseAction(text: string): { text: string; action: ActionTag | null } {
   return { text: text.slice(0, m.index).trim(), action };
 }
 
+// 町で聞いた噂(殺人・餓死など)を会話に出させる → 噂が町に広まる
+function rumorPrompt(agent: any): string {
+  const r = agent?.recentRumor;
+  if (!r) return '';
+  if (Date.now() - r.ts > TRAUMA_DURATION_MS) return '';
+  return `最近こんな噂を耳にした: ${r.text} 気になって、つい話に出してしまう。`;
+}
+
 // 相手への親愛度(符号付き)を会話の態度に反映する
 function affinityPrompt(otherName: string, aff: number): string {
   if (aff >= 5) return `あなたは${otherName}に強い好意・愛情を抱いている。言葉の端々に温かさがにじむ。`;
@@ -116,6 +124,7 @@ export async function startConversationMessage(
     affinityPrompt(otherPlayer.name, (agent as any)?.relationships?.[(otherPlayer as any).id] ?? 0),
   );
   prompt.push(traumaPrompt(agent));
+  prompt.push(rumorPrompt(agent));
   prompt.push(WORLD_RULES);
   prompt.push(ACTION_INSTRUCTION);
   prompt.push(LANGUAGE_INSTRUCTION);
@@ -180,6 +189,7 @@ export async function continueConversationMessage(
     affinityPrompt(otherPlayer.name, (agent as any)?.relationships?.[(otherPlayer as any).id] ?? 0),
   );
   prompt.push(traumaPrompt(agent));
+  prompt.push(rumorPrompt(agent));
   prompt.push(WORLD_RULES);
   prompt.push(ACTION_INSTRUCTION);
   prompt.push(LANGUAGE_INSTRUCTION);
@@ -238,6 +248,7 @@ export async function leaveConversationMessage(
     affinityPrompt(otherPlayer.name, (agent as any)?.relationships?.[(otherPlayer as any).id] ?? 0),
   );
   prompt.push(traumaPrompt(agent));
+  prompt.push(rumorPrompt(agent));
   prompt.push(WORLD_RULES);
   prompt.push(ACTION_INSTRUCTION);
   prompt.push(LANGUAGE_INSTRUCTION);

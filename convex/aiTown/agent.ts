@@ -38,6 +38,8 @@ export class Agent {
   relationships: Record<string, number>;
   // 襲われた等の心的外傷。会話プロンプトに滲み、語ることで噂になる。
   recentTrauma?: { text: string; ts: number };
+  // 町で聞いた噂(殺人・餓死など)。会話で口に出して広まる。
+  recentRumor?: { text: string; ts: number };
   // 婚姻(一夫一妻)。proposeTo=結婚を申し込んだ相手、spouse=配偶者、wantChildWith=子を望む相手。
   proposeTo?: string;
   spouse?: string;
@@ -57,6 +59,7 @@ export class Agent {
     this.inProgressOperation = inProgressOperation;
     this.relationships = serialized.relationships ?? {};
     this.recentTrauma = serialized.recentTrauma;
+    this.recentRumor = serialized.recentRumor;
     this.proposeTo = serialized.proposeTo;
     this.spouse = serialized.spouse;
     this.wantChildWith = serialized.wantChildWith;
@@ -284,6 +287,7 @@ export class Agent {
       inProgressOperation: this.inProgressOperation,
       relationships: this.relationships,
       recentTrauma: this.recentTrauma,
+      recentRumor: this.recentRumor,
       proposeTo: this.proposeTo,
       spouse: this.spouse,
       wantChildWith: this.wantChildWith,
@@ -306,6 +310,7 @@ export const serializedAgent = {
   ),
   relationships: v.optional(v.record(v.string(), v.number())),
   recentTrauma: v.optional(v.object({ text: v.string(), ts: v.number() })),
+  recentRumor: v.optional(v.object({ text: v.string(), ts: v.number() })),
   proposeTo: v.optional(v.string()),
   spouse: v.optional(v.string()),
   wantChildWith: v.optional(v.string()),

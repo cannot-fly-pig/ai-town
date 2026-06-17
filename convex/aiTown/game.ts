@@ -68,6 +68,13 @@ export class Game extends AbstractGame {
     console.log(`[event:${kind}] ${text}`);
   }
 
+  // 町中に噂を流す(全エージェントが耳にし、会話で口に出して広まる)
+  spreadRumor(now: number, text: string) {
+    for (const agent of this.world.agents.values()) {
+      agent.recentRumor = { text, ts: now };
+    }
+  }
+
   numPathfinds: number;
 
   constructor(

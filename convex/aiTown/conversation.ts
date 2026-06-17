@@ -124,6 +124,13 @@ export function doAttack(game: Game, now: number, atk: Player, vic: Player) {
     if (vicAgent) game.world.agents.delete(vicAgent.id);
     game.world.players.delete(vic.id);
     game.logEvent(now, 'violence', `${an} が ${vn} を殺して金を奪った`);
+    // 殺人の噂を町に流す(50%は犯人が知れ渡り、50%は迷宮入り)
+    game.spreadRumor(
+      now,
+      Math.random() < 0.5
+        ? `${vn}が殺されたらしい。犯人は${an}だという噂だ。`
+        : `${vn}が殺されたらしい。だが犯人はまだ分かっていないという。`,
+    );
   } else {
     // 非致死: 一部だけ奪い被害者は生存→恨みとtrauma(噂の種)
     const frac = ROBBERY_STEAL_MIN + Math.random() * (ROBBERY_STEAL_MAX - ROBBERY_STEAL_MIN);

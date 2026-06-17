@@ -152,6 +152,7 @@ export class Player {
       }
       const deadName = game.playerDescriptions.get(this.id)?.name ?? '誰か';
       game.logEvent(now, 'death', `${deadName} が餓死した`);
+      game.spreadRumor(now, `${deadName}が食うに困って餓死したらしい。`);
       this.leave(game, now);
     }
   }
