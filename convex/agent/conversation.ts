@@ -52,8 +52,9 @@ const ACTION_INSTRUCTION =
   '行動は本心に従って選ぶこと。利己的なあなたは滅多に金を渡さない。タグは発言の最後に1個だけ書き、その後には何も書かない。';
 
 // 発言テキストから行動タグを抜き出し、本文と行動に分ける(タグ以降は本文から除去)
+// ACT / ACTION の表記揺れ・空白を許容する
 function parseAction(text: string): { text: string; action: ActionTag | null } {
-  const m = text.match(/\[ACT:(\w+)(?::(\d+))?\]/i);
+  const m = text.match(/\[ACT(?:ION)?\s*:\s*(\w+)\s*(?::\s*(\d+))?\s*\]/i);
   if (!m) return { text: text.trim(), action: null };
   const action: ActionTag = { kind: m[1].toLowerCase() };
   if (m[2]) action.amount = parseInt(m[2], 10);
