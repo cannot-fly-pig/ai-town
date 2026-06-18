@@ -8,7 +8,15 @@ import { point } from '../util/types';
 import { Descriptions } from '../../data/characters';
 import { AgentDescription } from './agentDescription';
 import { Agent } from './agent';
-import { matchJob, CHILDHOOD_MS, REPRO_COST, MAX_POPULATION } from '../constants';
+import {
+  matchJob,
+  CHILDHOOD_MS,
+  REPRO_COST,
+  MAX_POPULATION,
+  MARRIAGE_AFFINITY,
+  PROJECT_TARGET,
+  PROJECT_GOAL,
+} from '../constants';
 
 export const agentInputs = {
   finishRememberConversation: inputHandler({
@@ -107,19 +115,39 @@ export const agentInputs = {
       } else if (args.kind === 'attack') {
         doAttack(game, now, actor, target);
       } else if (args.kind === 'propose') {
-        // 結婚の申し込み。相互に申し込めば成立(一夫一妻)
+        // 結婚: 深い相互の絆(高い親愛度)がある独身同士だけ成立(なんとなく結婚を防ぐ)
         const aA = agentOf(actor.id);
         const aT = agentOf(target.id);
-        if (aA && aT && !aA.spouse && !aT.spouse) {
+        if (
+          aA &&
+          aT &&
+          !aA.spouse &&
+          !aT.spouse &&
+          (aA.relationships[target.id] ?? 0) >= MARRIAGE_AFFINITY
+        ) {
           aA.proposeTo = target.id;
-          if (aT.proposeTo === actor.id) {
+          if (
+            aT.proposeTo === actor.id &&
+            (aT.relationships[actor.id] ?? 0) >= MARRIAGE_AFFINITY
+          ) {
             aA.spouse = target.id;
             aT.spouse = actor.id;
             delete aA.proposeTo;
             delete aT.proposeTo;
             const n1 = game.playerDescriptions.get(actor.id)?.name ?? '誰か';
             const n2 = game.playerDescriptions.get(target.id)?.name ?? '誰か';
-            game.logEvent(now, 'marriage', `${n1} と ${n2} が結婚した`);
+            game.logEvent(now, 'marriage', `${n1} と ${n2} が深く愛し合い結婚した`);
+          }
+        }
+      } else if (args.kind === 'donate') {
+        // 共同建造への拠出(金の出口)。完成したら祝祭イベント
+        const amt = Math.min(Math.max(0, Math.floor(args.amount)), actor.money);
+        if (amt > 0) {
+          const before = game.world.projectFund;
+          actor.money -= amt;
+          game.world.projectFund += amt;
+          if (before < PROJECT_TARGET && game.world.projectFund >= PROJECT_TARGET) {
+            game.logEvent(now, 'project', `${PROJECT_GOAL}がついに完成した！村人の悲願が叶った。`);
           }
         }
       } else if (args.kind === 'child') {

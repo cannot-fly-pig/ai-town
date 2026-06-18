@@ -6,7 +6,7 @@ import * as memory from './memory';
 import { api, internal } from '../_generated/api';
 import * as embeddingsCache from './embeddingsCache';
 import { GameId, conversationId, playerId } from '../aiTown/ids';
-import { NUM_MEMORIES_TO_SEARCH, TRAUMA_DURATION_MS } from '../constants';
+import { NUM_MEMORIES_TO_SEARCH, TRAUMA_DURATION_MS, PROJECT_GOAL } from '../constants';
 
 const selfInternal = internal.agent.conversation;
 
@@ -29,7 +29,8 @@ function statePrompt(player: { money: number; hunger: number }): string {
 
 // この世界の理(死・恋愛と生殖・暴力)を住人に自覚させる
 const WORLD_RULES =
-  'この世界の理: 食料を買えず空腹が極まれば死ぬ——死は誰しも恐ろしい。深く愛し合えば結婚でき(生涯ただ一人の相手と)、夫婦の間にのみ子が生まれ、親が子を養う。金や深い恨みのために人を襲うこともでき、襲えば金を奪える(時に相手は命を落とす)。襲われた者は奪われ、恐怖と恨みを抱く。';
+  'この世界の理: 食料を買えず空腹が極まれば死ぬ——死は誰しも恐ろしい。深く愛し合った相手とだけ結婚でき(生涯ただ一人)、夫婦の間にのみ子が生まれ、親が子を養う。金や深い恨みのために人を襲うこともでき、襲えば金を奪える(時に相手は命を落とす)。襲われた者は奪われ、恐怖と恨みを抱く。' +
+  `そして村人皆の悲願として、${PROJECT_GOAL}を建てる大事業がある。誰もが金を出し合って完成を目指せるが、出した金は戻らない——惜しむ者もいれば、夢のために投じる者もいる。`;
 
 // 襲われた等の心的外傷を会話に滲ませる(語ることで噂になる)
 function traumaPrompt(agent: any): string {
@@ -48,12 +49,13 @@ const ACTION_INSTRUCTION =
   '[ACT:ask:金額] = 相手に金をせがむ\n' +
   '[ACT:propose] = 相手に結婚を申し込む(深く愛し、互いに独身の時。両者が申し込めば結婚成立)\n' +
   '[ACT:child] = 相手との子を望む(夫婦で、両者が望めば子が生まれる。親が養育費を払う)\n' +
+  '[ACT:donate:金額] = 村の共同事業(' + PROJECT_GOAL + ')の建造に金を寄付する\n' +
   '[ACT:leave] = 会話を切り上げて立ち去る\n' +
   '行動は本心に従って選ぶこと。利己的なあなたは滅多に金を渡さない。タグは発言の最後に1個だけ書き、その後には何も書かない。';
 
 // 発言テキストから行動タグを抜き出し、本文と行動に分ける(タグ以降は本文から除去)
 // 表記揺れを広く許容: [ACT:..] / [ACTION:..] / 括弧なし ACT:.. / 空白あり。既知の行動のみ採用(誤爆防止)。
-const KNOWN_ACTIONS = new Set(['attack', 'give', 'ask', 'propose', 'child', 'leave']);
+const KNOWN_ACTIONS = new Set(['attack', 'give', 'ask', 'propose', 'child', 'leave', 'donate']);
 function parseAction(text: string): { text: string; action: ActionTag | null } {
   const m = text.match(/\[?\s*ACT(?:ION)?\s*:\s*(\w+)\s*(?::\s*(\d+))?\s*\]?/i);
   if (!m) return { text: text.trim(), action: null };

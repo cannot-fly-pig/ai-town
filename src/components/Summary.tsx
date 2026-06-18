@@ -1,5 +1,6 @@
 import { useQuery } from 'convex/react';
 import { api } from '../../convex/_generated/api';
+import { PROJECT_GOAL, PROJECT_TARGET } from '../../convex/constants';
 
 function fmt(t: number) {
   return new Date(t).toLocaleString('ja-JP', {
@@ -15,6 +16,7 @@ function icon(kind: string) {
   if (kind === 'violence') return '💀';
   if (kind === 'death') return '🪦';
   if (kind === 'marriage') return '💍';
+  if (kind === 'project') return '🚢';
   return '•';
 }
 
@@ -42,6 +44,27 @@ export default function Summary() {
   return (
     <div className="font-body text-white" style={{ minWidth: '56vw' }}>
       <h1 className="text-center text-5xl font-display game-title mb-4">町の記録</h1>
+
+      <h2 className="text-3xl mt-2 mb-1">🚢 村の悲願（{PROJECT_GOAL}）</h2>
+      <div className="bg-black/30 p-2 mb-3 text-base">
+        {(() => {
+          const fund = Math.floor((worldState as any)?.world?.projectFund ?? 0);
+          const pct = Math.min(100, (fund / PROJECT_TARGET) * 100);
+          return (
+            <>
+              <div className="flex justify-between">
+                <span>建造資金</span>
+                <span>
+                  {fund} / {PROJECT_TARGET}
+                </span>
+              </div>
+              <div className="mt-1 h-3 bg-black/40 rounded">
+                <div className="h-full bg-emerald-500 rounded" style={{ width: `${pct}%` }} />
+              </div>
+            </>
+          );
+        })()}
+      </div>
 
       <h2 className="text-3xl mt-2 mb-1">📜 出来事</h2>
       <div className="max-h-48 overflow-y-auto bg-black/30 p-2 text-base leading-snug">
