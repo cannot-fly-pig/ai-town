@@ -28,11 +28,17 @@ export async function rememberConversation(
   playerId: GameId<'players'>,
   conversationId: GameId<'conversations'>,
 ) {
-  const data = await ctx.runQuery(selfInternal.loadConversation, {
-    worldId,
-    playerId,
-    conversationId,
-  });
+  // 会話が暴力などで既に消えていることがある(loadConversationがthrow)→握りつぶして正常終了
+  let data;
+  try {
+    data = await ctx.runQuery(selfInternal.loadConversation, {
+      worldId,
+      playerId,
+      conversationId,
+    });
+  } catch {
+    return { affinityDelta: 0, otherPlayerId: '' };
+  }
   const { player, otherPlayer } = data;
   const messages = await ctx.runQuery(selfInternal.loadMessages, { worldId, conversationId });
   if (!messages.length) {
@@ -64,9 +70,10 @@ export async function rememberConversation(
   });
   // 会話を経た相手への感情変化(sentiment)を抽出して親愛度に反映する
   let affinityDelta = 0;
-  const fm = content.match(/\[FEELING:\s*([+-]?\d+)\s*\]/i);
+  // モデルは括弧を省く([FEELING:+2] も FEELING: +2 も拾う)
+  const fm = content.match(/\[?\s*FEELING\s*:\s*([+-]?\d+)\s*\]?/i);
   if (fm) affinityDelta = Math.max(-3, Math.min(3, parseInt(fm[1], 10)));
-  const cleanContent = content.replace(/\[FEELING:[^\]]*\]/i, '').trim();
+  const cleanContent = content.replace(/\[?\s*FEELING\s*:\s*[+-]?\d+\s*\]?/i, '').trim();
   const description = `Conversation with ${otherPlayer.name} at ${new Date(
     data.conversation._creationTime,
   ).toLocaleString()}: ${cleanContent}`;
