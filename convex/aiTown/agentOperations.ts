@@ -25,7 +25,7 @@ export const agentRememberConversation = internalAction({
     operationId: v.string(),
   },
   handler: async (ctx, args) => {
-    await rememberConversation(
+    const result = await rememberConversation(
       ctx,
       args.worldId,
       args.agentId as GameId<'agents'>,
@@ -39,6 +39,8 @@ export const agentRememberConversation = internalAction({
       args: {
         agentId: args.agentId,
         operationId: args.operationId,
+        otherPlayerId: result?.otherPlayerId ?? '',
+        affinityDelta: result?.affinityDelta ?? 0,
       },
     });
   },

@@ -325,12 +325,8 @@ export class Conversation {
 
   stop(game: Game, now: number) {
     delete this.isTyping;
-    try {
-      // 暴力・生殖はLLM駆動。会話終了時は親愛度の更新のみ。
-      bumpConversationAffinity(game, now, this);
-    } catch (e) {
-      console.error('affinity update failed', e);
-    }
+    // 親愛度は会話のsentiment(rememberConversation)で更新するため、ここでは何もしない。
+    // 暴力・生殖もLLM駆動に移行済み。
     for (const [playerId, member] of this.participants.entries()) {
       const agent = [...game.world.agents.values()].find((a) => a.playerId === playerId);
       if (agent) {

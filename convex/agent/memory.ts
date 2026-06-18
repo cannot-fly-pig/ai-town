@@ -36,15 +36,15 @@ export async function rememberConversation(
   const { player, otherPlayer } = data;
   const messages = await ctx.runQuery(selfInternal.loadMessages, { worldId, conversationId });
   if (!messages.length) {
-    return;
+    return { affinityDelta: 0, otherPlayerId: otherPlayer.id as string };
   }
 
   const llmMessages: LLMMessage[] = [
     {
       role: 'user',
       content: `You are ${player.name}, and you just finished a conversation with ${otherPlayer.name}. I would
-      like you to summarize the conversation from ${player.name}'s perspective, using first-person pronouns like
-      "I," and add if you liked or disliked this interaction.`,
+      like you to summarize the conversation from ${player.name}'s perspective (日本語で), using first-person pronouns like
+      "I," and add if you liked or disliked this interaction. 最後に必ず1行 [FEELING:数値] を書く。これはこの会話を経て${otherPlayer.name}への気持ちがどう変化したか(-3=強く嫌いになった / 0=変化なし / +3=強く好きになった)。`,
     },
   ];
   const authors = new Set<GameId<'players'>>();
@@ -62,9 +62,14 @@ export async function rememberConversation(
     messages: llmMessages,
     max_tokens: 500,
   });
+  // 会話を経た相手への感情変化(sentiment)を抽出して親愛度に反映する
+  let affinityDelta = 0;
+  const fm = content.match(/\[FEELING:\s*([+-]?\d+)\s*\]/i);
+  if (fm) affinityDelta = Math.max(-3, Math.min(3, parseInt(fm[1], 10)));
+  const cleanContent = content.replace(/\[FEELING:[^\]]*\]/i, '').trim();
   const description = `Conversation with ${otherPlayer.name} at ${new Date(
     data.conversation._creationTime,
-  ).toLocaleString()}: ${content}`;
+  ).toLocaleString()}: ${cleanContent}`;
   const importance = await calculateImportance(description);
   const { embedding } = await fetchEmbedding(description);
   authors.delete(player.id as GameId<'players'>);
@@ -82,7 +87,7 @@ export async function rememberConversation(
     embedding,
   });
   await reflectOnMemories(ctx, worldId, playerId);
-  return description;
+  return { affinityDelta, otherPlayerId: otherPlayer.id as string };
 }
 
 export const loadConversation = internalQuery({

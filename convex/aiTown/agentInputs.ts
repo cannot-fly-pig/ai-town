@@ -23,6 +23,8 @@ export const agentInputs = {
     args: {
       operationId: v.string(),
       agentId,
+      otherPlayerId: v.optional(v.string()),
+      affinityDelta: v.optional(v.number()),
     },
     handler: (game, now, args) => {
       const agentId = parseGameId('agents', args.agentId);
@@ -38,6 +40,10 @@ export const agentInputs = {
       } else {
         delete agent.inProgressOperation;
         delete agent.toRemember;
+        // 会話のsentiment(好き/嫌いの変化)を相手への親愛度に反映
+        if (args.otherPlayerId && args.affinityDelta) {
+          agent.bumpAffinity(args.otherPlayerId, args.affinityDelta);
+        }
       }
       return null;
     },

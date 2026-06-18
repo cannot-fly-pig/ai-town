@@ -12,7 +12,7 @@ const selfInternal = internal.agent.conversation;
 
 // 町の住人は日本語で話す
 const LANGUAGE_INSTRUCTION =
-  '重要: あなたは日本人で、必ず自然な日本語で返答すること。英語や中国語は使わない。';
+  '【厳守】返答は必ず自然な日本語のみで書くこと。中国語(簡体字)や英語を一文字たりとも混ぜない。';
 
 // 生存状態(所持金・空腹)をプロンプトに反映し、会話に滲ませる
 function statePrompt(player: { money: number; hunger: number }): string {
@@ -64,6 +64,26 @@ function parseAction(text: string): { text: string; action: ActionTag | null } {
   const action: ActionTag = { kind };
   if (m[2]) action.amount = parseInt(m[2], 10);
   return { text: text.slice(0, m.index).trim(), action };
+}
+
+// 簡体字中国語の検出(日本語に無い高頻度の簡体字が複数あれば中国語と判定)
+function isChinese(text: string): boolean {
+  const m = text.match(/[们这时说没个吗什谁对给么]/g);
+  return !!m && m.length >= 2;
+}
+
+// 日本語厳守版のチャット。中国語が漏れたら一度だけ強い指示で再生成する。
+async function jaChatCompletion(body: any): Promise<{ content: string }> {
+  const res = await chatCompletion(body);
+  if (!isChinese(res.content || '')) return { content: res.content };
+  const retry = await chatCompletion({
+    ...body,
+    messages: [
+      ...body.messages,
+      { role: 'user', content: '(さっきの返答は中国語が混ざっていた。必ず日本語だけで書き直して)' },
+    ],
+  });
+  return { content: retry.content };
 }
 
 // 町で聞いた噂(殺人・餓死など)を会話に出させる → 噂が町に広まる
@@ -137,7 +157,7 @@ export async function startConversationMessage(
   const lastPrompt = `${player.name} to ${otherPlayer.name}:`;
   prompt.push(lastPrompt);
 
-  const { content } = await chatCompletion({
+  const { content } = await jaChatCompletion({
     messages: [
       {
         role: 'system',
@@ -216,7 +236,7 @@ export async function continueConversationMessage(
   const lastPrompt = `${player.name} to ${otherPlayer.name}:`;
   llmMessages.push({ role: 'user', content: lastPrompt });
 
-  const { content } = await chatCompletion({
+  const { content } = await jaChatCompletion({
     messages: llmMessages,
     max_tokens: 300,
     stop: stopWords(otherPlayer.name, player.name),
@@ -274,7 +294,7 @@ export async function leaveConversationMessage(
   const lastPrompt = `${player.name} to ${otherPlayer.name}:`;
   llmMessages.push({ role: 'user', content: lastPrompt });
 
-  const { content } = await chatCompletion({
+  const { content } = await jaChatCompletion({
     messages: llmMessages,
     max_tokens: 300,
     stop: stopWords(otherPlayer.name, player.name),
